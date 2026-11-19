@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secret Santa</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #ef4444;
+      --accent-hover: #dc2626;
+      --green: #22c55e;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    }
+    h1 { margin: 0 0 0.5rem; font-size: 1.75rem; }
+    h2 { margin: 1.5rem 0 0.5rem; font-size: 1.05rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    p { color: var(--muted); line-height: 1.5; }
+    .target-box {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin: 1.25rem 0;
+      text-align: center;
+    }
+    .target-name {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fca5a5;
+      margin-top: 0.25rem;
+    }
+    .wishlist-display {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem;
+      white-space: pre-wrap;
+      color: var(--text);
+      font-size: 0.95rem;
+      min-height: 3rem;
+    }
+    textarea {
+      width: 100%;
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+      font: inherit;
+      margin-top: 0.4rem;
+      min-height: 100px;
+      resize: vertical;
+    }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 0.75rem 1.25rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.75rem;
+      width: 100%;
+      transition: background 0.15s;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status {
+      margin-top: 0.6rem;
+      font-size: 0.9rem;
+      text-align: center;
+      color: var(--green);
+      min-height: 1.2rem;
+    }
+    .error { color: #f87171; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="view-loading">
+      <h1>Secret Santa</h1>
+      <p>Loading your assignment...</p>
+    </div>
+
+    <div id="view-participant" class="hidden">
+      <h1>Hi <span id="user-name"></span>!</h1>
+      <p>Here is who you're buying a gift for:</p>
+
+      <div class="target-box">
+        <div style="font-size: 0.85rem; color: var(--muted);">Your Secret Santa target</div>
+        <div class="target-name" id="target-name">—</div>
+      </div>
+
+      <h2>Their Wishlist</h2>
+      <div class="wishlist-display" id="target-wishlist">No wishlist added yet.</div>
+
+      <h2>Your Wishlist</h2>
+      <p style="font-size: 0.85rem; margin: 0;">Add gift ideas so whoever drew you has some inspiration:</p>
+      <textarea id="my-wishlist" placeholder="e.g., Books, coffee beans, board games..."></textarea>
+      <button id="save-btn">Save My Wishlist</button>
+      <div class="status" id="save-status"></div>
+    </div>
+
+    <div id="view-empty" class="hidden">
+      <h1>Secret Santa</h1>
+      <p>Open the personal link sent to you (ending in <code>#token=...</code>) to view your assignment and wishlist.</p>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbwKaHDf6GxY9LtR8LoULtny8ajd_aRERzU-M1WEf5Cc817NfMQmUs6owxwm6Ssyk4Wo4Q/exec';
+
+    const views = {
+      loading: document.getElementById('view-loading'),
+      participant: document.getElementById('view-participant'),
+      empty: document.getElementById('view-empty')
+    };
+
+    function showView(name) {
+      Object.values(views).forEach(el => el.classList.add('hidden'));
+      views[name].classList.remove('hidden');
+    }
+
+    async function init() {
+      const hash = window.location.hash.replace(/^#/, '');
+      const token = new URLSearchParams(hash).get('token');
+
+      if (!token) {
+        showView('empty');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+
+        if (data.error) {
+          views.loading.innerHTML = `<h1>Invalid Link</h1><p class="error">${data.error}</p>`;
+          return;
+        }
+
+        document.getElementById('user-name').textContent = data.name;
+        document.getElementById('target-name').textContent = data.target || 'Not assigned yet';
+        document.getElementById('target-wishlist').textContent =
+          data.targetWishlist && data.targetWishlist.trim()
+            ? data.targetWishlist
+            : 'No wishlist added yet.';
+        document.getElementById('my-wishlist').value = data.wishlist || '';
+
+        showView('participant');
+
+        document.getElementById('save-btn').addEventListener('click', async () => {
+          const btn = document.getElementById('save-btn');
+          const status = document.getElementById('save-status');
+          const wishlist = document.getElementById('my-wishlist').value;
+
+          btn.disabled = true;
+          btn.textContent = 'Saving...';
+          status.textContent = '';
+
+          try {
+            const postRes = await fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ token, wishlist })
+            });
+            const result = await postRes.json();
+            if (result.status === 'ok') {
+              status.classList.remove('error');
+              status.textContent = 'Wishlist saved!';
+            } else {
+              throw new Error(result.error || 'Failed to save');
+            }
+          } catch (err) {
+            status.classList.add('error');
+            status.textContent = 'Could not save wishlist. Please try again.';
+          } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save My Wishlist';
+          }
+        });
+      } catch (err) {
+        views.loading.innerHTML = `<h1>Connection Error</h1><p class="error">Unable to load your Secret Santa details.</p>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
